@@ -100,15 +100,18 @@ describe('PUT /v1/pairs/artefacts/{kind}', () => {
     expect(store.rows.size).toBe(1);
   });
 
-  it('stores the backtest kind beside the scan kind, separately', async () => {
+  it('stores every kind beside the others, separately', async () => {
     const store = new FakePairsStore();
     const put = createPutPairsArtefactHandler(store);
     await put(authedEvent('pair-scan', scanBody));
-    const result = await put(authedEvent('backtest', backtestBody));
-    expect(result.statusCode).toBe(200);
-    expect(store.rows.size).toBe(2);
-    expect(await store.listRuns('backtest')).toHaveLength(1);
-    expect(await store.listRuns('pair-scan')).toHaveLength(1);
+    await put(authedEvent('backtest', backtestBody));
+    const daily = await put(authedEvent('daily', fixtureBody('daily.golden.json')));
+    const weekly = await put(authedEvent('weekly', fixtureBody('weekly.golden.json')));
+    expect(daily.statusCode).toBe(200);
+    expect(weekly.statusCode).toBe(200);
+    expect(store.rows.size).toBe(4);
+    expect(await store.listRuns('daily')).toHaveLength(1);
+    expect(await store.listRuns('weekly')).toHaveLength(1);
   });
 
   it('is idempotent by run date within a kind', async () => {
@@ -121,7 +124,7 @@ describe('PUT /v1/pairs/artefacts/{kind}', () => {
 
   it('answers not found for an unknown kind, storing nothing', async () => {
     const store = new FakePairsStore();
-    const result = await createPutPairsArtefactHandler(store)(authedEvent('daily', scanBody));
+    const result = await createPutPairsArtefactHandler(store)(authedEvent('hourly', scanBody));
     expect(result.statusCode).toBe(404);
     expect(errorEnvelopeSchema.parse(bodyOf(result)).error.code).toBe('not_found');
     expect(store.rows.size).toBe(0);
@@ -190,7 +193,7 @@ describe('GET /v1/pairs/artefacts/{kind}', () => {
 
   it('answers not found for an unknown kind', async () => {
     const result = await createGetPairsArtefactHandler(new FakePairsStore())(
-      authedEvent('daily')
+      authedEvent('hourly')
     );
     expect(result.statusCode).toBe(404);
   });

@@ -30,6 +30,52 @@ WINDOW_END = "windowEnd"
 
 
 @dataclass(frozen=True)
+class SignalState:
+    """One pair's rule state after a close: the held direction, the days
+    it has been held, and whether the pair stands down after a stop."""
+
+    held: int = 0
+    days_held: int = 0
+    stood_down: bool = False
+
+
+def step(
+    state: SignalState,
+    z: float,
+    entry_z: float = ENTRY_Z,
+    exit_z: float = EXIT_Z,
+    stop_z: float = STOP_Z,
+    max_hold_days: int = MAX_HOLD_DAYS,
+) -> tuple[SignalState, str | None]:
+    """One day of the rule, the single code path backtest and live share:
+    today's close decides the direction to hold from here, plus the close
+    reason when a held position returned to zero today.
+
+    The comparison order mirrors the plan's engine exactly, including its
+    treatment of a not-a-number z-score (every comparison false, so an
+    open position rides with its day counted and a flat pair stays flat).
+    """
+    if state.stood_down:
+        if abs(z) < exit_z:
+            return SignalState(0, 0, False), None
+        return state, None
+    if state.held == 0:
+        if z > entry_z:
+            return SignalState(-1, 0, False), None
+        if z < -entry_z:
+            return SignalState(1, 0, False), None
+        return SignalState(0, 0, False), None
+    days_held = state.days_held + 1
+    if abs(z) >= stop_z:
+        return SignalState(0, 0, True), Z_STOP
+    if days_held >= max_hold_days:
+        return SignalState(0, 0, True), TIME_STOP
+    if abs(z) < exit_z:
+        return SignalState(0, 0, False), EXIT_BAND
+    return SignalState(state.held, days_held, False), None
+
+
+@dataclass(frozen=True)
 class PositionPath:
     """Per-day position in spread units, plus the close reasons keyed by
     the day the position returned to zero."""
@@ -46,42 +92,29 @@ def position_path(
     stop_z: float = STOP_Z,
     max_hold_days: int = MAX_HOLD_DAYS,
 ) -> PositionPath:
-    """Walk the z-score series and decide the held units per day.
+    """Walk the z-score series through step(); the backtest's view of the
+    same arithmetic the live compute applies one close at a time.
 
     first_tradeable is the first index with valid rolling statistics
-    (the lookback boundary); everything before it stays flat.
+    (the lookback boundary); everything before it stays flat. A stood-down
+    day holds the flat position without counting anything, exactly the
+    plan's continue branch.
     """
     position = np.zeros(len(z))
     close_reasons: dict[int, str] = {}
-    stood_down = False
-    days_held = 0
+    state = SignalState()
     for t in range(first_tradeable, len(z)):
-        held = position[t - 1] if t > 0 else 0.0
-        if stood_down:
-            if abs(z[t]) < exit_z:
-                stood_down = False
-            continue
-        if held == 0:
-            days_held = 0
-            if z[t] > entry_z:
-                position[t] = -1.0
-            elif z[t] < -entry_z:
-                position[t] = 1.0
-        else:
-            days_held += 1
-            if abs(z[t]) >= stop_z:
-                position[t] = 0.0
-                stood_down = True
-                close_reasons[t] = Z_STOP
-            elif days_held >= max_hold_days:
-                position[t] = 0.0
-                stood_down = True
-                close_reasons[t] = TIME_STOP
-            elif abs(z[t]) < exit_z:
-                position[t] = 0.0
-                close_reasons[t] = EXIT_BAND
-            else:
-                position[t] = held
+        state, reason = step(
+            state,
+            float(z[t]),
+            entry_z=entry_z,
+            exit_z=exit_z,
+            stop_z=stop_z,
+            max_hold_days=max_hold_days,
+        )
+        position[t] = float(state.held)
+        if reason is not None:
+            close_reasons[t] = reason
     return PositionPath(position=position, close_reasons=close_reasons)
 
 

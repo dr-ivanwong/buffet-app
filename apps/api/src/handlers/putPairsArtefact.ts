@@ -8,9 +8,11 @@
  */
 import {
   backtestReportSchema,
+  dailyPairsReportSchema,
   errorEnvelope,
   pairsArtefactRunSchema,
-  pairScanReportSchema
+  pairScanReportSchema,
+  weeklyMonitoringReportSchema
 } from '@plainsight/api-contract';
 import type {
   APIGatewayProxyEventV2WithJWTAuthorizer,
@@ -29,7 +31,9 @@ import { userIdOf } from './syncPush.js';
 
 export const REPORT_SCHEMAS: Record<PairsArtefactKind, z.ZodType<PairsReportMeta>> = {
   'pair-scan': pairScanReportSchema,
-  backtest: backtestReportSchema
+  backtest: backtestReportSchema,
+  daily: dailyPairsReportSchema,
+  weekly: weeklyMonitoringReportSchema
 };
 
 export function kindOf(

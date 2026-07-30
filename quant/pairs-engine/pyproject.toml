@@ -13,6 +13,11 @@ dependencies = [
     "statsmodels>=0.14",
 ]
 
+[project.optional-dependencies]
+# The broker adapter's client, needed only on the machine that executes
+# against TWS or IB Gateway: uv sync --extra live. Never a CI dependency.
+live = ["ib-async>=1.0"]
+
 [dependency-groups]
 dev = ["pytest>=8.3"]
 

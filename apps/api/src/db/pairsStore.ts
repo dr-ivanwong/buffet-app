@@ -14,7 +14,7 @@ import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, PutCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
 import { pairsArtefactRunSchema, type PairsArtefactRun } from '@plainsight/api-contract';
 
-export const PAIRS_KINDS = ['pair-scan', 'backtest'] as const;
+export const PAIRS_KINDS = ['pair-scan', 'backtest', 'daily', 'weekly'] as const;
 export type PairsArtefactKind = (typeof PAIRS_KINDS)[number];
 
 export function isPairsKind(value: string): value is PairsArtefactKind {

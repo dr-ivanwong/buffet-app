@@ -174,6 +174,123 @@ export const backtestReportSchema = z.object({
   pairs: z.array(backtestPairSchema)
 });
 
+export const DAILY_ARTEFACT_KIND = 'dailyPairsReport';
+export const DAILY_SCHEMA_VERSION = 1;
+export const WEEKLY_ARTEFACT_KIND = 'weeklyMonitoringReport';
+export const WEEKLY_SCHEMA_VERSION = 1;
+
+export const DAILY_RECONCILIATION_STATUSES = ['clean', 'halted', 'unchecked'] as const;
+
+export const dailyLegSchema = z.object({
+  ticker: nonEmpty,
+  targetShares: z.number().int(),
+  heldShares: z.number().int()
+});
+
+export const dailyPairSchema = z.object({
+  ticker1: nonEmpty,
+  ticker2: nonEmpty,
+  beta: z.number(),
+  capital: z.number().positive(),
+  z: z.number(),
+  spread: z.number(),
+  spreadMean: z.number(),
+  spreadStd: z.number(),
+  stoodDown: z.boolean(),
+  daysHeld: z.number().int().nonnegative(),
+  heldUnits: z.number().int(),
+  targetUnits: z.number().int(),
+  unitGross: z.number().positive(),
+  legs: z.array(dailyLegSchema),
+  zSeries: backtestSeriesSchema
+});
+
+export const dailyMismatchSchema = z.object({
+  ticker: nonEmpty,
+  book: z.number().int(),
+  broker: z.number().int()
+});
+
+export const dailyReconciliationSchema = z.object({
+  status: z.enum(DAILY_RECONCILIATION_STATUSES),
+  checkedAt: isoDateTime.nullable(),
+  mismatches: z.array(dailyMismatchSchema)
+});
+
+export const dailyFillSchema = z.object({
+  filledOn: isoDate,
+  ticker: nonEmpty,
+  shares: z.number().int(),
+  price: z.number().positive(),
+  referenceClose: z.number().positive(),
+  slippageBps: z.number()
+});
+
+export const dailyPnlSchema = z
+  .object({
+    dates: z.array(isoDate),
+    daily: z.array(z.number()),
+    cumulative: z.array(z.number()),
+    engineCumulative: z.array(z.number()),
+    drawdownPct: z.number(),
+    maxDrawdownPct: z.number(),
+    declaredMaxDrawdownPct: z.number().positive(),
+    grossExposure: z.number().nonnegative(),
+    stopsFired: z.number().int().nonnegative(),
+    roundTrips: z.number().int().nonnegative(),
+    realisedCostBpsPerSide: z.number().nullable(),
+    modelledCostBpsPerSide: z.number().positive()
+  })
+  .refine(
+    (pnl) =>
+      pnl.daily.length === pnl.dates.length &&
+      pnl.cumulative.length === pnl.dates.length &&
+      pnl.engineCumulative.length === pnl.dates.length,
+    { message: 'the P&L series must align one to one' }
+  );
+
+export const dailyPairsReportSchema = z.object({
+  artefact: z.literal(DAILY_ARTEFACT_KIND),
+  schemaVersion: z.literal(DAILY_SCHEMA_VERSION),
+  engineVersion: nonEmpty,
+  runDate: isoDate,
+  generatedAt: isoDateTime,
+  paper: z.boolean(),
+  reconciliation: dailyReconciliationSchema,
+  assumptions: backtestAssumptionsSchema,
+  limitCapBps: z.number().positive(),
+  pairs: z.array(dailyPairSchema),
+  fills: z.array(dailyFillSchema),
+  pnl: dailyPnlSchema
+});
+
+export const weeklyPairRowSchema = z.object({
+  ticker1: nonEmpty,
+  ticker2: nonEmpty,
+  deployedBeta: z.number(),
+  pValueNow: z.number(),
+  halfLifeDaysNow: z.number().nullable(),
+  refitBeta: z.number(),
+  betaDriftPct: z.number(),
+  trackingErrorBps: z.number().nullable()
+});
+
+export const weeklyCorrelationSchema = z.object({
+  pairA: nonEmpty,
+  pairB: nonEmpty,
+  correlation: z.number()
+});
+
+export const weeklyMonitoringReportSchema = z.object({
+  artefact: z.literal(WEEKLY_ARTEFACT_KIND),
+  schemaVersion: z.literal(WEEKLY_SCHEMA_VERSION),
+  engineVersion: nonEmpty,
+  runDate: isoDate,
+  generatedAt: isoDateTime,
+  pairs: z.array(weeklyPairRowSchema),
+  correlations: z.array(weeklyCorrelationSchema)
+});
+
 /** One stored run: the PUT response and the history rows of the GET. */
 export const pairsArtefactRunSchema = z.object({
   runDate: isoDate,
@@ -196,6 +313,18 @@ export const pairsBacktestCollectionSchema = z.object({
   history: z.array(pairsArtefactRunSchema)
 });
 
+/** The daily kind's GET response, same envelope shape. */
+export const pairsDailyCollectionSchema = z.object({
+  latest: dailyPairsReportSchema.nullable(),
+  history: z.array(pairsArtefactRunSchema)
+});
+
+/** The weekly kind's GET response, same envelope shape. */
+export const pairsWeeklyCollectionSchema = z.object({
+  latest: weeklyMonitoringReportSchema.nullable(),
+  history: z.array(pairsArtefactRunSchema)
+});
+
 export type PairScanReport = z.infer<typeof pairScanReportSchema>;
 export type PairRow = z.infer<typeof pairRowSchema>;
 export type PairsArtefactRun = z.infer<typeof pairsArtefactRunSchema>;
@@ -205,3 +334,9 @@ export type BacktestPair = z.infer<typeof backtestPairSchema>;
 export type BacktestWindowResult = z.infer<typeof backtestWindowResultSchema>;
 export type BacktestTrade = z.infer<typeof backtestTradeSchema>;
 export type PairsBacktestCollection = z.infer<typeof pairsBacktestCollectionSchema>;
+export type DailyPairsReport = z.infer<typeof dailyPairsReportSchema>;
+export type DailyPair = z.infer<typeof dailyPairSchema>;
+export type DailyFill = z.infer<typeof dailyFillSchema>;
+export type WeeklyMonitoringReport = z.infer<typeof weeklyMonitoringReportSchema>;
+export type PairsDailyCollection = z.infer<typeof pairsDailyCollectionSchema>;
+export type PairsWeeklyCollection = z.infer<typeof pairsWeeklyCollectionSchema>;

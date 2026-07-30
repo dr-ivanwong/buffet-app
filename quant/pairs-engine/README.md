@@ -31,7 +31,9 @@ uv run pairs-engine backtest
 
 `fetch` refreshes the whole five-year window for all fifty tickers and aborts loudly, all failures listed, if any ticker is missing: a downloader that skips failures quietly shrinks the universe. `scan` reads the cache, freezes the split, runs the statistics, and writes `artefacts/pair-scan-<runDate>.json`. Both `data/` and `artefacts/` are operator-local working state, ignored by git.
 
-Publishing to the app's API (slice 2) rides the same environment-only rule: `PLAINSIGHT_API_URL`, `PLAINSIGHT_COGNITO_CLIENT_ID` and `PLAINSIGHT_COGNITO_REFRESH_TOKEN`, then `uv run pairs-engine publish`. The refresh token is minted once via the runbook's pairs publish step; the PUT is idempotent by run date, and artefacts travel in this direction only (the app renders and never writes sleeve data).
+Publishing to the app's API (slice 2) rides the same environment-only rule: `PLAINSIGHT_API_URL`, `PLAINSIGHT_COGNITO_CLIENT_ID` and `PLAINSIGHT_COGNITO_REFRESH_TOKEN`, then `uv run pairs-engine publish` (`--kind` picks among `pair-scan`, `backtest`, `daily` and `weekly`). The refresh token is minted once via the runbook's pairs publish step; the PUT is idempotent by run date, and artefacts travel in this direction only (the app renders and never writes sleeve data).
+
+The live jobs (slice 5) run the paper cycle: `init-live` scaffolds the deployed-pairs config from the newest backtest, `compute` marks the book nightly and writes targets plus the daily artefact through the same stepped signal rule the backtest measured, `execute` reconciles against the broker first and halts with no orders on any mismatch (`clear-halt` is the human's reset), and `weekly` writes the monitoring artefact. The broker adapter needs `uv sync --extra live` (ib_async) and a running TWS or IB Gateway; the runbook's paper-cycle section carries the steps and the halt drill.
 
 ## Determinism and tests
 

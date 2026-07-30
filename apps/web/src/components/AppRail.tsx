@@ -11,7 +11,8 @@ const COMPANY_SECTIONS = [
 
 const PAIRS_SECTIONS = [
   { label: 'Research', to: '/pairs', exact: true },
-  { label: 'Backtest', to: '/pairs/backtest', exact: false }
+  { label: 'Backtest', to: '/pairs/backtest', exact: false },
+  { label: 'Live', to: '/pairs/live', exact: false }
 ] as const;
 
 /**

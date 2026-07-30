@@ -8,7 +8,9 @@
 import {
   errorEnvelope,
   pairsArtefactCollectionSchema,
-  pairsBacktestCollectionSchema
+  pairsBacktestCollectionSchema,
+  pairsDailyCollectionSchema,
+  pairsWeeklyCollectionSchema
 } from '@plainsight/api-contract';
 import type {
   APIGatewayProxyEventV2WithJWTAuthorizer,
@@ -26,7 +28,9 @@ import { userIdOf } from './syncPush.js';
 
 const COLLECTION_SCHEMAS: Record<PairsArtefactKind, z.ZodType> = {
   'pair-scan': pairsArtefactCollectionSchema,
-  backtest: pairsBacktestCollectionSchema
+  backtest: pairsBacktestCollectionSchema,
+  daily: pairsDailyCollectionSchema,
+  weekly: pairsWeeklyCollectionSchema
 };
 
 export function createGetPairsArtefactHandler(store: PairsArtefactStore) {

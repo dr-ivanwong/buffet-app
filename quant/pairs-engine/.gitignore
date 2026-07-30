@@ -4,7 +4,9 @@ __pycache__/
 .pytest_cache/
 *.egg-info/
 
-# Operator-local data and outputs: the close cache and written artefacts
-# are per-machine working state, never committed.
+# Operator-local data and outputs: the close cache, written artefacts,
+# and the live directory (book, targets, fills, P&L) are per-machine
+# working state, never committed.
 data/
 artefacts/
+live/

@@ -8,11 +8,15 @@ import { describe, expect, it } from 'vitest';
 import {
   BACKTEST_ARTEFACT_KIND,
   backtestReportSchema,
+  dailyPairsReportSchema,
   PAIR_SCAN_ARTEFACT_KIND,
   pairsArtefactCollectionSchema,
   pairsArtefactRunSchema,
   pairsBacktestCollectionSchema,
-  pairScanReportSchema
+  pairsDailyCollectionSchema,
+  pairsWeeklyCollectionSchema,
+  pairScanReportSchema,
+  weeklyMonitoringReportSchema
 } from '../src/index.js';
 
 const fixture: unknown = JSON.parse(
@@ -137,6 +141,57 @@ describe('the backtest report schema', () => {
       history: [run]
     });
     expect(populated.latest?.pairs).toHaveLength(1);
+  });
+});
+
+describe('the daily and weekly report schemas', () => {
+  const dailyFixture: unknown = JSON.parse(
+    readFileSync(new URL('../fixtures/daily.golden.json', import.meta.url), 'utf8')
+  );
+  const weeklyFixture: unknown = JSON.parse(
+    readFileSync(new URL('../fixtures/weekly.golden.json', import.meta.url), 'utf8')
+  );
+
+  it('parses the engine-written daily fixture with its panels aligned', () => {
+    const report = dailyPairsReportSchema.parse(dailyFixture);
+    expect(report.paper).toBe(true);
+    expect(report.reconciliation.status).toBe('clean');
+    const pair = report.pairs[0];
+    if (pair === undefined) throw new Error('fixture carries one pair');
+    expect(pair.zSeries.dates).toHaveLength(pair.zSeries.values.length);
+    expect(pair.legs).toHaveLength(2);
+    expect(report.fills.length).toBeGreaterThan(0);
+    expect(report.pnl.dates).toHaveLength(report.pnl.cumulative.length);
+    expect(report.pnl.declaredMaxDrawdownPct).toBe(12);
+    const collection = pairsDailyCollectionSchema.parse({ latest: dailyFixture, history: [run] });
+    expect(collection.latest?.artefact).toBe('dailyPairsReport');
+  });
+
+  it('rejects misaligned P&L series and a foreign reconciliation status', () => {
+    const report = dailyPairsReportSchema.parse(dailyFixture);
+    expect(
+      dailyPairsReportSchema.safeParse({
+        ...report,
+        pnl: { ...report.pnl, daily: report.pnl.daily.slice(1) }
+      }).success
+    ).toBe(false);
+    expect(
+      dailyPairsReportSchema.safeParse({
+        ...report,
+        reconciliation: { ...report.reconciliation, status: 'vibes' }
+      }).success
+    ).toBe(false);
+  });
+
+  it('parses the engine-written weekly fixture', () => {
+    const report = weeklyMonitoringReportSchema.parse(weeklyFixture);
+    const row = report.pairs[0];
+    if (row === undefined) throw new Error('fixture carries one pair');
+    expect(row.pValueNow).toBeLessThan(0.05);
+    expect(row.trackingErrorBps).not.toBeNull();
+    const collection = pairsWeeklyCollectionSchema.parse({ latest: weeklyFixture, history: [run] });
+    expect(collection.latest?.artefact).toBe('weeklyMonitoringReport');
+    expect(pairsWeeklyCollectionSchema.parse({ latest: null, history: [] }).latest).toBeNull();
   });
 });
 

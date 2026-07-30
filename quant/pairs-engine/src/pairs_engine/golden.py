@@ -92,6 +92,88 @@ def golden_backtest_report() -> BacktestReport:
     return build_backtest_report(results, scan_report, GOLDEN_GENERATED_AT)
 
 
+GOLDEN_LIVE_DAYS = 40
+GOLDEN_LIVE_CAPITAL = 30_000.0
+
+
+class _ScriptedBroker:
+    """Deterministic paper fills for the fixture run: every order fills
+    at the quote nudged two basis points against the trade, and the
+    share ledger mirrors what was worked, so reconciliation stays clean."""
+
+    def __init__(self) -> None:
+        self.shares: dict[str, int] = {}
+        self.quotes: dict[str, float] = {}
+
+    def positions(self) -> dict[str, int]:
+        return dict(self.shares)
+
+    def place_capped_limit(self, ticker: str, shares: int, cap_bps: float):
+        from .execute import BrokerFill
+
+        del cap_bps
+        price = self.quotes[ticker] * (1 + 0.0002 * (1 if shares > 0 else -1))
+        self.shares[ticker] = self.shares.get(ticker, 0) + shares
+        return BrokerFill(ticker=ticker, shares=shares, price=price)
+
+
+def golden_live_state(root):
+    """A scripted paper run over the planted pair's last stretch: compute
+    then execute per close, fills from the scripted broker, so the daily
+    and weekly fixtures carry every shape the live surface renders."""
+    from pathlib import Path
+
+    from .data import CloseStore
+    from .execute import run_execute
+    from .live import LiveConfig, LivePairConfig, LiveState, run_compute
+
+    root = Path(root)
+    closes = golden_closes()
+    series1, series2 = closes["AAA"], closes["BBB"]
+    store = CloseStore(root / "data")
+    state = LiveState(root / "live")
+    state.write_config(
+        LiveConfig(
+            paper=True,
+            pairs=[
+                LivePairConfig(ticker1="AAA", ticker2="BBB", beta=2.5, capital=GOLDEN_LIVE_CAPITAL)
+            ],
+        )
+    )
+    broker = _ScriptedBroker()
+    total = len(series1)
+    for offset in range(total - GOLDEN_LIVE_DAYS, total):
+        store.save("AAA", series1.iloc[: offset + 1])
+        store.save("BBB", series2.iloc[: offset + 1])
+        run_compute(state, store)
+        broker.quotes = {
+            "AAA": float(series1.iloc[offset]),
+            "BBB": float(series2.iloc[offset]),
+        }
+        run_execute(state, broker, now=GOLDEN_GENERATED_AT)
+    return state, store
+
+
+def golden_daily_report():
+    import tempfile
+
+    from .live import build_daily_report
+
+    with tempfile.TemporaryDirectory() as workspace:
+        state, store = golden_live_state(workspace)
+        return build_daily_report(state, store, GOLDEN_GENERATED_AT)
+
+
+def golden_weekly_report():
+    import tempfile
+
+    from .live import build_weekly_report
+
+    with tempfile.TemporaryDirectory() as workspace:
+        state, store = golden_live_state(workspace)
+        return build_weekly_report(state, store, GOLDEN_GENERATED_AT)
+
+
 def golden_json() -> str:
     return golden_report().model_dump_json(by_alias=True, indent=2) + "\n"
 
@@ -100,6 +182,20 @@ def golden_backtest_json() -> str:
     return golden_backtest_report().model_dump_json(by_alias=True, indent=2) + "\n"
 
 
+def golden_daily_json() -> str:
+    return golden_daily_report().model_dump_json(by_alias=True, indent=2) + "\n"
+
+
+def golden_weekly_json() -> str:
+    return golden_weekly_report().model_dump_json(by_alias=True, indent=2) + "\n"
+
+
 if __name__ == "__main__":
     which = sys.argv[1] if len(sys.argv) > 1 else "pair-scan"
-    print(golden_backtest_json() if which == "backtest" else golden_json(), end="")
+    output = {
+        "pair-scan": golden_json,
+        "backtest": golden_backtest_json,
+        "daily": golden_daily_json,
+        "weekly": golden_weekly_json,
+    }[which]()
+    print(output, end="")

@@ -18,7 +18,7 @@ DEFAULT_REGION = "ap-southeast-2"
 
 # One authenticated PUT per artefact kind (integration plan §4); the API
 # routes by the kind segment, and file names carry the same slug.
-ARTEFACT_KINDS = ("pair-scan", "backtest")
+ARTEFACT_KINDS = ("pair-scan", "backtest", "daily", "weekly")
 DEFAULT_KIND = "pair-scan"
 
 

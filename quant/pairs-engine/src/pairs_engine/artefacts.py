@@ -43,6 +43,10 @@ SCHEMA_VERSION = 1
 ARTEFACT_KIND = "pairScanReport"
 BACKTEST_SCHEMA_VERSION = 1
 BACKTEST_ARTEFACT_KIND = "backtestReport"
+DAILY_SCHEMA_VERSION = 1
+DAILY_ARTEFACT_KIND = "dailyPairsReport"
+WEEKLY_SCHEMA_VERSION = 1
+WEEKLY_ARTEFACT_KIND = "weeklyMonitoringReport"
 
 
 class WireModel(BaseModel):
@@ -375,5 +379,121 @@ def build_backtest_report(
 def write_backtest_report(report: BacktestReport, out_dir: Path) -> Path:
     out_dir.mkdir(parents=True, exist_ok=True)
     path = out_dir / f"backtest-{report.run_date.isoformat()}.json"
+    path.write_text(report.model_dump_json(by_alias=True, indent=2) + "\n")
+    return path
+
+
+class DailyLeg(WireModel):
+    ticker: str
+    target_shares: int
+    held_shares: int
+
+
+class DailyPairReport(WireModel):
+    ticker1: str
+    ticker2: str
+    beta: float
+    capital: float
+    z: float
+    spread: float
+    spread_mean: float
+    spread_std: float
+    stood_down: bool
+    days_held: int
+    held_units: int
+    target_units: int
+    unit_gross: float
+    legs: list[DailyLeg]
+    z_series: BacktestSeries
+
+
+class DailyMismatch(WireModel):
+    ticker: str
+    book: int
+    broker: int
+
+
+class DailyReconciliation(WireModel):
+    status: str
+    checked_at: datetime | None
+    mismatches: list[DailyMismatch]
+
+
+class DailyFill(WireModel):
+    filled_on: date
+    ticker: str
+    shares: int
+    price: float
+    reference_close: float
+    slippage_bps: float
+
+
+class DailyPnl(WireModel):
+    dates: list[date]
+    daily: list[float]
+    cumulative: list[float]
+    engine_cumulative: list[float]
+    drawdown_pct: float
+    max_drawdown_pct: float
+    declared_max_drawdown_pct: float
+    gross_exposure: float
+    stops_fired: int
+    round_trips: int
+    realised_cost_bps_per_side: float | None
+    modelled_cost_bps_per_side: float
+
+
+class DailyPairsReport(WireModel):
+    artefact: Literal["dailyPairsReport"]
+    schema_version: int
+    engine_version: str
+    run_date: date
+    generated_at: datetime
+    paper: bool
+    reconciliation: DailyReconciliation
+    assumptions: BacktestAssumptions
+    limit_cap_bps: float
+    pairs: list[DailyPairReport]
+    fills: list[DailyFill]
+    pnl: DailyPnl
+
+
+class WeeklyPairRow(WireModel):
+    ticker1: str
+    ticker2: str
+    deployed_beta: float
+    p_value_now: float
+    half_life_days_now: float | None
+    refit_beta: float
+    beta_drift_pct: float
+    tracking_error_bps: float | None
+
+
+class WeeklyCorrelation(WireModel):
+    pair_a: str
+    pair_b: str
+    correlation: float
+
+
+class WeeklyMonitoringReport(WireModel):
+    artefact: Literal["weeklyMonitoringReport"]
+    schema_version: int
+    engine_version: str
+    run_date: date
+    generated_at: datetime
+    pairs: list[WeeklyPairRow]
+    correlations: list[WeeklyCorrelation]
+
+
+def write_daily_report(report: DailyPairsReport, out_dir: Path) -> Path:
+    out_dir.mkdir(parents=True, exist_ok=True)
+    path = out_dir / f"daily-{report.run_date.isoformat()}.json"
+    path.write_text(report.model_dump_json(by_alias=True, indent=2) + "\n")
+    return path
+
+
+def write_weekly_report(report: WeeklyMonitoringReport, out_dir: Path) -> Path:
+    out_dir.mkdir(parents=True, exist_ok=True)
+    path = out_dir / f"weekly-{report.run_date.isoformat()}.json"
     path.write_text(report.model_dump_json(by_alias=True, indent=2) + "\n")
     return path

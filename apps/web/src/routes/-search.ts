@@ -101,3 +101,13 @@ export const backtestSearchSchema = z.object({
 });
 
 export type BacktestSearch = z.infer<typeof backtestSearchSchema>;
+
+/**
+ * The live surface (integration plan §4, slice 5): `?pair=AAA-BBB`
+ * focuses one deployed pair's spread panel; absent, the first renders.
+ */
+export const liveSearchSchema = z.object({
+  pair: z.string().optional().catch(undefined)
+});
+
+export type LiveSearch = z.infer<typeof liveSearchSchema>;

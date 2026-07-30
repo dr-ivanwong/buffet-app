@@ -104,7 +104,7 @@ def test_publish_routes_by_kind_and_refuses_unknown_kinds(tmp_path):
         raise AssertionError("an unknown kind must fail before any network call")
 
     with pytest.raises(PublishError, match="unknown artefact kind"):
-        publish_artefact(artefact, CONFIG, kind="daily", transport=httpx.MockTransport(refuse))
+        publish_artefact(artefact, CONFIG, kind="hourly", transport=httpx.MockTransport(refuse))
 
 
 def test_cli_publish_without_credentials_points_at_the_runbook(monkeypatch, capsys):

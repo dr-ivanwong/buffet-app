@@ -163,6 +163,16 @@ The engine is built and tested keyless (integration plan §7, slice 1); the firs
 
    The publish is idempotent by run date, and one kind rides per call: the command above publishes the scan; add `--kind backtest` (same environment) for the backtest artefact. The GET half of the route pair serves latest plus history to the Pairs surfaces: Research reads the scan, Backtest reads the backtest.
 
+## Pairs sleeve: the paper cycle
+
+The two live jobs run against the paper login first (pairs trading plan, Weeks 5 to 8); the code is identical for live, and only the TWS port and login select which. Everything below is operator-run on the operator's machine; the app renders artefacts and never trades.
+
+1. **Once: the broker side.** Open the IB paper account, run TWS or IB Gateway with the paper login (port 7497), subscribe the ASX market data feed, and install the engine's broker client: `uv sync --extra live` from `quant/pairs-engine` (ib_async is never a CI dependency).
+2. **Once: deploy the pairs.** `uv run pairs-engine init-live` scaffolds `live/config.json` from the newest backtest's selected pairs; size each pair's `capital` by hand (the plan's Week 9 allocation logic; zero refuses to compute). The `live/` directory is git-ignored operator state: the book, targets, fills, P&L and events.
+3. **The daily cycle.** After the close (the plan runs 18:30 AEST): `uv run pairs-engine compute`, then publish the daily artefact (`--kind daily`). Next morning after the staggered open (10:15 AEST): `uv run pairs-engine execute`, which reconciles the book against the broker before any order and works the deltas as capped limit orders; it rewrites the daily artefact with the fresh reconciliation, so publish `--kind daily` again after it. Cron both once the manual cycle feels boring; the app's live surface says loudly when a nightly report goes stale.
+4. **Weekly.** `uv run pairs-engine weekly` re-tests cointegration on the live pairs, measures beta drift, pair correlation and tracking error, and writes the weekly artefact; publish `--kind weekly`.
+5. **The halt drill, once on purpose (integration plan §7, slice 5's exit criterion).** Perturb a position in the paper account by hand (buy one share of a deployed leg outside the system), run `execute`, and watch it halt with no orders; the daily artefact carries the halted reconciliation and `/pairs/live` renders it as an alert. Resolve the paper position, `uv run pairs-engine clear-halt`, and the next execute run re-reconciles from scratch. A halt you have rehearsed is a control; one you meet first in anger is a surprise.
+
 ## Rebuild from zero (the drill)
 
 Everything is IaC plus exactly two out-of-band artefacts: the CDK bootstrap and the contact parameter. From an empty account, run go-live steps 2 to 7. Canonical data needs no restore: any ticker re-ingests on demand and the weekly sweep refreshes the watched set. The owner's research lives on the owner's devices (and from Phase 3, the table's user partitions restore via point-in-time recovery). Exercise the drill on a rehearsal overlay when an infra change deserves it (`--context env=rehearsal`; see the infra README).

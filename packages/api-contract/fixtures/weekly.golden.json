@@ -1,0 +1,20 @@
+{
+  "artefact": "weeklyMonitoringReport",
+  "schemaVersion": 1,
+  "engineVersion": "0.1.0",
+  "runDate": "2024-01-26",
+  "generatedAt": "2026-07-22T09:30:00Z",
+  "pairs": [
+    {
+      "ticker1": "AAA",
+      "ticker2": "BBB",
+      "deployedBeta": 2.5,
+      "pValueNow": 0.00002,
+      "halfLifeDaysNow": 3.5746,
+      "refitBeta": 2.597446,
+      "betaDriftPct": 3.8979,
+      "trackingErrorBps": 6.61
+    }
+  ],
+  "correlations": []
+}

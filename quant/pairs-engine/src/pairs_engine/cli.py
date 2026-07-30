@@ -128,6 +128,128 @@ def _backtest(args: argparse.Namespace) -> int:
     return 0
 
 
+def _init_live(args: argparse.Namespace) -> int:
+    from .artefacts import BacktestReport
+    from .live import LiveConfig, LivePairConfig, LiveState
+    from .publish import newest_artefact
+
+    state = LiveState(Path(args.live_dir))
+    if (state.root / "config.json").exists() and not args.force:
+        print(f"{state.root}/config.json already exists; pass --force to overwrite", file=sys.stderr)
+        return 1
+    found = newest_artefact(Path(args.out_dir), "backtest")
+    if found is None:
+        print(f"no backtest artefacts under {args.out_dir}; run backtest first", file=sys.stderr)
+        return 1
+    report = BacktestReport.model_validate_json(found.read_text())
+    selected = [pair for pair in report.pairs if pair.selected]
+    if not selected:
+        print(f"{found.name} selected no pairs; nothing to deploy", file=sys.stderr)
+        return 1
+    config = LiveConfig(
+        paper=True,
+        pairs=[
+            LivePairConfig(
+                ticker1=pair.ticker1, ticker2=pair.ticker2, beta=pair.beta, capital=0.0
+            )
+            for pair in selected
+        ],
+    )
+    path = state.write_config(config)
+    print(f"wrote {path} with {len(selected)} selected pair(s) from {found.name}")
+    print("size each pair's capital in the config before the first compute; zero refuses to run")
+    return 0
+
+
+def _compute(args: argparse.Namespace) -> int:
+    from .artefacts import write_daily_report
+    from .live import LiveState, build_daily_report, run_compute
+
+    state = LiveState(Path(args.live_dir))
+    store = CloseStore(Path(args.data_dir))
+    try:
+        targets, book = run_compute(state, store)
+    except (ValueError, FileNotFoundError) as error:
+        print(str(error), file=sys.stderr)
+        return 1
+    report = build_daily_report(state, store, datetime.now(timezone.utc))
+    path = write_daily_report(report, Path(args.out_dir))
+    for key, target in sorted(targets.pairs.items()):
+        print(f"{key}: z {target.z:+.2f}, target {target.target_units} unit(s)")
+    if book.halted:
+        print("the book is HALTED; execute will refuse until clear-halt", file=sys.stderr)
+    print(f"artefact: {path}")
+    return 0
+
+
+def _execute(args: argparse.Namespace) -> int:
+    from .artefacts import write_daily_report
+    from .execute import HaltedError, ib_broker, run_execute
+    from .live import LiveState, build_daily_report
+
+    state = LiveState(Path(args.live_dir))
+    store = CloseStore(Path(args.data_dir))
+    try:
+        broker = ib_broker(port=args.port)
+    except RuntimeError as error:
+        print(str(error), file=sys.stderr)
+        return 2
+    try:
+        fills = run_execute(state, broker, now=datetime.now(timezone.utc))
+    except HaltedError as error:
+        print(str(error), file=sys.stderr)
+        # The halt must render loudly: rebuild the daily artefact so the
+        # published reconciliation carries it (integration plan §3).
+        report = build_daily_report(state, store, datetime.now(timezone.utc))
+        path = write_daily_report(report, Path(args.out_dir))
+        print(f"artefact with the halt recorded: {path}; publish it", file=sys.stderr)
+        return 3
+    except ValueError as error:
+        print(str(error), file=sys.stderr)
+        return 1
+    for fill in fills:
+        print(
+            f"{fill.ticker}: {fill.shares:+d} at {fill.price} "
+            f"({fill.slippage_bps:+.1f} bps vs the reference close)"
+        )
+    report = build_daily_report(state, store, datetime.now(timezone.utc))
+    path = write_daily_report(report, Path(args.out_dir))
+    print(f"{len(fills)} fill(s); reconciliation clean; artefact: {path}")
+    return 0
+
+
+def _weekly(args: argparse.Namespace) -> int:
+    from .artefacts import write_weekly_report
+    from .live import LiveState, build_weekly_report
+
+    state = LiveState(Path(args.live_dir))
+    store = CloseStore(Path(args.data_dir))
+    try:
+        report = build_weekly_report(state, store, datetime.now(timezone.utc))
+    except (ValueError, FileNotFoundError) as error:
+        print(str(error), file=sys.stderr)
+        return 1
+    path = write_weekly_report(report, Path(args.out_dir))
+    for row in report.pairs:
+        drift = f"{row.beta_drift_pct:+.1f}%"
+        print(
+            f"{row.ticker1}-{row.ticker2}: p now {row.p_value_now:.4f}, "
+            f"beta drift {drift}, tracking "
+            + ("n/a" if row.tracking_error_bps is None else f"{row.tracking_error_bps:.1f} bps")
+        )
+    print(f"artefact: {path}")
+    return 0
+
+
+def _clear_halt(args: argparse.Namespace) -> int:
+    from .execute import clear_halt
+    from .live import LiveState
+
+    clear_halt(LiveState(Path(args.live_dir)))
+    print("halt cleared; the next execute run re-reconciles from scratch")
+    return 0
+
+
 def _publish(args: argparse.Namespace) -> int:
     import os
 
@@ -194,10 +316,59 @@ def main(argv: list[str] | None = None) -> int:
     backtest_cmd.add_argument("--scan", help="scan artefact file (default: newest in the output directory)")
     backtest_cmd.set_defaults(run=_backtest)
 
+    init_live_cmd = commands.add_parser(
+        "init-live", help="scaffold live/config.json from the newest backtest's selected pairs"
+    )
+    init_live_cmd.add_argument("--out-dir", default="artefacts", help="artefact output directory")
+    init_live_cmd.add_argument("--live-dir", default="live", help="live state directory")
+    init_live_cmd.add_argument("--force", action="store_true", help="overwrite an existing config")
+    init_live_cmd.set_defaults(run=_init_live)
+
+    compute_cmd = commands.add_parser(
+        "compute", help="the nightly job: mark the book, step the rule, write targets and the daily artefact"
+    )
+    compute_cmd.add_argument("--data-dir", default="data", help="close cache directory")
+    compute_cmd.add_argument("--live-dir", default="live", help="live state directory")
+    compute_cmd.add_argument("--out-dir", default="artefacts", help="artefact output directory")
+    compute_cmd.set_defaults(run=_compute)
+
+    execute_cmd = commands.add_parser(
+        "execute", help="the morning job: reconcile against the broker, then work the deltas"
+    )
+    execute_cmd.add_argument("--data-dir", default="data", help="close cache directory")
+    execute_cmd.add_argument("--live-dir", default="live", help="live state directory")
+    execute_cmd.add_argument("--out-dir", default="artefacts", help="artefact output directory")
+    execute_cmd.add_argument(
+        "--port",
+        type=int,
+        default=7497,
+        help="TWS port: 7497 is the paper login, 7496 live; the login selects which",
+    )
+    execute_cmd.set_defaults(run=_execute)
+
+    weekly_cmd = commands.add_parser(
+        "weekly", help="the weekly monitor: cointegration held, beta drift, correlations, tracking"
+    )
+    weekly_cmd.add_argument("--data-dir", default="data", help="close cache directory")
+    weekly_cmd.add_argument("--live-dir", default="live", help="live state directory")
+    weekly_cmd.add_argument("--out-dir", default="artefacts", help="artefact output directory")
+    weekly_cmd.set_defaults(run=_weekly)
+
+    clear_halt_cmd = commands.add_parser(
+        "clear-halt", help="reset the halt after resolving a book-versus-broker mismatch by hand"
+    )
+    clear_halt_cmd.add_argument("--live-dir", default="live", help="live state directory")
+    clear_halt_cmd.set_defaults(run=_clear_halt)
+
     publish_cmd = commands.add_parser("publish", help="PUT the newest artefact of a kind to the app's API")
     publish_cmd.add_argument("--artefact", help="artefact file (default: newest of the kind in the output directory)")
     publish_cmd.add_argument("--out-dir", default="artefacts", help="artefact output directory")
-    publish_cmd.add_argument("--kind", default="pair-scan", choices=["pair-scan", "backtest"], help="artefact kind")
+    publish_cmd.add_argument(
+        "--kind",
+        default="pair-scan",
+        choices=["pair-scan", "backtest", "daily", "weekly"],
+        help="artefact kind",
+    )
     publish_cmd.set_defaults(run=_publish)
 
     args = parser.parse_args(argv)

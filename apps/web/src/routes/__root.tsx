@@ -34,7 +34,13 @@ export const queryClient = new QueryClient({
 });
 
 /** Screens that render in the wider column (frontend spec §7): the dashboard, compare, and the pairs surfaces. */
-const WIDE_ROUTE_IDS: readonly string[] = ['/company/$id/', '/compare', '/pairs/', '/pairs/backtest'];
+const WIDE_ROUTE_IDS: readonly string[] = [
+  '/company/$id/',
+  '/compare',
+  '/pairs/',
+  '/pairs/backtest',
+  '/pairs/live',
+];
 
 /**
  * Ask the browser to keep this origin's data, once per launch. Browsers
