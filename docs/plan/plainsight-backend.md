@@ -32,7 +32,7 @@ This table drives the cdk §6 invariant: every route flagged auth here must have
 | `POST /v1/extractions` | ✓ | 3 | Start an extraction job; Idempotency-Key required |
 | `GET /v1/extractions/{jobId}` | ✓ | 3 | Job status / result payload |
 | `POST /v1/proxy/{providerId}` | ✓ | 3 | BYOK pass-through for non-CORS providers (§7) |
-| `PUT /v1/pairs/artefacts/{kind}` | ✓ | pairs slice 2 | The engine publishes a validated artefact of the named kind, idempotent by run date (integration plan §4; added 2026-07-22, the kind segment added with slice 4: `pair-scan`, `backtest`, then `daily` and `weekly` with slice 5 (2026-07-30), a closed set that grows with its schemas, never new functions) |
+| `PUT /v1/pairs/artefacts/{kind}` | ✓ | pairs slice 2 | The engine publishes a validated artefact of the named kind, idempotent by run date (integration plan §4; added 2026-07-22, the kind segment added with slice 4: `pair-scan`, `backtest`, then `daily` and `weekly` with slice 5 (2026-07-30), a closed set that grows with its schemas, never new functions). A daily artefact carrying a halted reconciliation additionally nudges the account alert topic, best-effort (integration plan §10, added 2026-07-30) |
 | `GET /v1/pairs/artefacts/{kind}` | ✓ | pairs slice 2 | The latest report of the named kind in full plus the run history, for the Pairs surfaces; unknown kinds are not found |
 
 Route throttles: ~10 rps / 20 burst per route (cdk §8 not-list: throttles are the WAF and the scraper cost-cap). All routes sit behind CloudFront; `GET financials` carries the 6-hour edge cache with pipeline invalidation.

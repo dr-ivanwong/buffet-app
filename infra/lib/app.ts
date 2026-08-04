@@ -93,6 +93,9 @@ export function buildApp(app: App, config: EnvConfig): PlainsightStacks {
             : { auth: { userPool: auth.userPool, webClient: auth.webClient } }),
           ...(data.uploadsBucket === undefined ? {} : { uploadsBucket: data.uploadsBucket }),
           ...(ingestion === undefined ? {} : { extractFunction: ingestion.extractFunction }),
+          // A halted daily pairs artefact nudges the alert topic
+          // (integration plan §10).
+          alertTopic: foundation.alertTopic,
         })
       : undefined;
 

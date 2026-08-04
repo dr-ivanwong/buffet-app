@@ -913,6 +913,27 @@ describe('Api stack (spec §5 Lambda rules; backend spec §2 route table)', () =
     expect(format).not.toContain('header');
   });
 
+  it('the halt alert publishes to exactly the one alert topic', () => {
+    // Integration plan §10: the pairs put function may nudge the
+    // Foundation alert topic when a halted daily artefact lands, and
+    // nothing else on this stack may publish to SNS at all.
+    const policies = Object.values(api.findResources('AWS::IAM::Policy')) as any[];
+    const snsStatements = policies
+      .flatMap((policy) => policy.Properties.PolicyDocument.Statement as any[])
+      .filter((statement) => [statement.Action].flat().some((action: string) => action.startsWith('sns:')));
+    expect(snsStatements).toHaveLength(1);
+    const statement = snsStatements[0];
+    expect(statement.Sid).toBe('PublishHaltAlert');
+    expect([statement.Action].flat()).toEqual(['sns:Publish']);
+    // The resource is the imported Foundation topic, never a wildcard.
+    expect(JSON.stringify(statement.Resource)).not.toContain('*');
+    const putPairs: any = Object.values(functions).find(
+      (fn: any) => fn.Properties.Environment?.Variables?.ALERT_TOPIC_ARN !== undefined,
+    );
+    expect(putPairs).toBeDefined();
+    expect(putPairs.Properties.Environment.Variables.UPLOADS_BUCKET).toBeDefined();
+  });
+
   it('table writes exist only on the sync and job-start roles, key-prefix confined', () => {
     // The read path stays write-free; the sync functions write under USER#
     // and IDEMP# leading keys, and the job starter under JOB#, USER#, and

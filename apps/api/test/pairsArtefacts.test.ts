@@ -28,6 +28,24 @@ const fixtureBody = (name: string): string =>
 const scanBody = fixtureBody('pair-scan.golden.json');
 const backtestBody = fixtureBody('backtest.golden.json');
 
+/** The golden daily fixture with its reconciliation flipped to halted. */
+function haltedDailyBody(): string {
+  const report = JSON.parse(fixtureBody('daily.golden.json')) as Record<string, unknown>;
+  report['reconciliation'] = {
+    status: 'halted',
+    checkedAt: '2026-07-30T00:20:00Z',
+    mismatches: [{ ticker: 'BBB', book: -10, broker: -7 }]
+  };
+  return JSON.stringify(report);
+}
+
+class FakeAlerter {
+  readonly messages: { subject: string; message: string }[] = [];
+  async publishHalt(subject: string, message: string): Promise<void> {
+    this.messages.push({ subject, message });
+  }
+}
+
 class FakePairsStore implements PairsArtefactStore {
   readonly reports = new Map<string, unknown>();
   readonly rows = new Map<string, PairsArtefactRun>();
@@ -159,6 +177,39 @@ describe('PUT /v1/pairs/artefacts/{kind}', () => {
     };
     const result = await createPutPairsArtefactHandler(store)(authedEvent('pair-scan', scanBody));
     expect(result.statusCode).toBe(500);
+  });
+
+  it('nudges the alert topic when a daily artefact carries a halt', async () => {
+    const alerter = new FakeAlerter();
+    const put = createPutPairsArtefactHandler(new FakePairsStore(), undefined, alerter);
+    const result = await put(authedEvent('daily', haltedDailyBody()));
+    expect(result.statusCode).toBe(200);
+    expect(alerter.messages).toHaveLength(1);
+    const alert = alerter.messages[0];
+    expect(alert?.subject).toBe('Plainsight pairs: the book is halted');
+    expect(alert?.message).toContain('BBB (book -10, broker -7)');
+    expect(alert?.message).toContain('clear-halt');
+  });
+
+  it('stays quiet for a clean daily artefact', async () => {
+    const alerter = new FakeAlerter();
+    const put = createPutPairsArtefactHandler(new FakePairsStore(), undefined, alerter);
+    await put(authedEvent('daily', fixtureBody('daily.golden.json')));
+    expect(alerter.messages).toHaveLength(0);
+  });
+
+  it('stores the halted artefact even when the alert cannot send', async () => {
+    const store = new FakePairsStore();
+    const failing = {
+      publishHalt: async () => {
+        throw new Error('sns unavailable');
+      }
+    };
+    const result = await createPutPairsArtefactHandler(store, undefined, failing)(
+      authedEvent('daily', haltedDailyBody())
+    );
+    expect(result.statusCode).toBe(200);
+    expect(store.rows.size).toBe(1);
   });
 });
 

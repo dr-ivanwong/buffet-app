@@ -9,6 +9,7 @@ import * as iam from 'aws-cdk-lib/aws-iam';
 import type * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as logs from 'aws-cdk-lib/aws-logs';
 import type * as s3 from 'aws-cdk-lib/aws-s3';
+import type * as sns from 'aws-cdk-lib/aws-sns';
 import type { Construct } from 'constructs';
 import type { EnvConfig } from '../../config/types';
 import { ASX_DIRECTORY_OBJECT_KEY, edgarContactParameterName, LOG_RETENTION, TICKER_INDEX_OBJECT_KEY } from '../constants';
@@ -39,6 +40,8 @@ export interface ApiStackProps extends StackProps {
   uploadsBucket?: s3.IBucket;
   /** The Ingestion stack's extraction worker; absent, jobs fail visibly at start. */
   extractFunction?: lambda.IFunction;
+  /** The Foundation alert topic: a halted daily pairs artefact nudges it (integration plan §10). */
+  alertTopic?: sns.ITopic;
 }
 
 /**
@@ -55,8 +58,16 @@ export class ApiStack extends Stack {
 
   constructor(scope: Construct, id: string, props: ApiStackProps) {
     super(scope, id, props);
-    const { config, table, ingestFunction, indexBucket, auth, uploadsBucket, extractFunction } =
-      props;
+    const {
+      config,
+      table,
+      ingestFunction,
+      indexBucket,
+      auth,
+      uploadsBucket,
+      extractFunction,
+      alertTopic,
+    } = props;
 
     this.httpApi = new apigwv2.HttpApi(this, 'HttpApi', {
       apiName: `plainsight-${config.envName}-api`,
@@ -389,8 +400,24 @@ export class ApiStack extends Stack {
         description:
           'PUT /v1/pairs/artefacts/{kind}: the engine publishes a validated artefact of the named kind (integration plan §4).',
         timeout: Duration.seconds(10),
-        environment: { ...environment, UPLOADS_BUCKET: uploadsBucket.bucketName },
+        environment: {
+          ...environment,
+          UPLOADS_BUCKET: uploadsBucket.bucketName,
+          // A halted daily artefact nudges the account alert topic, the
+          // budget kill-chain's channel (integration plan §10, built
+          // 2026-07-30); best-effort in the handler, never load-bearing.
+          ...(alertTopic === undefined ? {} : { ALERT_TOPIC_ARN: alertTopic.topicArn }),
+        },
       });
+      if (alertTopic !== undefined) {
+        putPairsArtefact.fn.addToRolePolicy(
+          new iam.PolicyStatement({
+            sid: 'PublishHaltAlert',
+            actions: ['sns:Publish'],
+            resources: [alertTopic.topicArn],
+          }),
+        );
+      }
       putPairsArtefact.fn.addToRolePolicy(
         new iam.PolicyStatement({
           sid: 'WritePairsArtefactObjects',

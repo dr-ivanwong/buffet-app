@@ -12,13 +12,15 @@ import {
   errorEnvelope,
   pairsArtefactRunSchema,
   pairScanReportSchema,
-  weeklyMonitoringReportSchema
+  weeklyMonitoringReportSchema,
+  type DailyPairsReport
 } from '@plainsight/api-contract';
 import type {
   APIGatewayProxyEventV2WithJWTAuthorizer,
   APIGatewayProxyStructuredResultV2
 } from 'aws-lambda';
 import type { z } from 'zod';
+import { SnsHaltAlerter, type HaltAlerter } from '../aws/haltAlert.js';
 import {
   isPairsKind,
   TablePairsStore,
@@ -45,7 +47,8 @@ export function kindOf(
 
 export function createPutPairsArtefactHandler(
   store: PairsArtefactStore,
-  now: () => Date = () => new Date()
+  now: () => Date = () => new Date(),
+  alerter?: HaltAlerter
 ) {
   return async (
     event: APIGatewayProxyEventV2WithJWTAuthorizer
@@ -90,6 +93,37 @@ export function createPutPairsArtefactHandler(
         outcome: 'stored',
         detail: `${kind} ${row.runDate}`
       });
+      // The halt alert (integration plan §10): a daily artefact carrying
+      // a halted reconciliation nudges the owner through the account's
+      // alert topic. Best-effort: the store already succeeded, the app's
+      // banner is the control, and an unsendable alert must not turn a
+      // stored artefact into an error. A standing halt re-alerts on
+      // every publish, deliberately: an unresolved break should nag.
+      if (kind === 'daily' && alerter !== undefined) {
+        const daily = report.data as DailyPairsReport;
+        if (daily.reconciliation.status === 'halted') {
+          const mismatches = daily.reconciliation.mismatches
+            .map((entry) => `${entry.ticker} (book ${String(entry.book)}, broker ${String(entry.broker)})`)
+            .join('; ');
+          try {
+            await alerter.publishHalt(
+              'Plainsight pairs: the book is halted',
+              `The ${daily.runDate} daily artefact carries a halted reconciliation` +
+                (mismatches === '' ? '' : `: ${mismatches}`) +
+                '. The engine refuses to trade until the book is resolved and clear-halt runs ' +
+                '(runbook, the pairs paper-cycle section). The live surface shows the details.'
+            );
+            logOutcome({ requestId, route: 'putPairsArtefact', outcome: 'haltAlerted', detail: daily.runDate });
+          } catch (alertError) {
+            logOutcome({
+              requestId,
+              route: 'putPairsArtefact',
+              outcome: 'haltAlertFailed',
+              detail: alertError instanceof Error ? alertError.message : 'unknown'
+            });
+          }
+        }
+      }
       return jsonResponse(200, pairsArtefactRunSchema.parse(row));
     } catch (error) {
       logOutcome({
@@ -107,10 +141,16 @@ export function createPutPairsArtefactHandler(
 }
 
 let store: PairsArtefactStore | undefined;
+let alerter: HaltAlerter | undefined;
+let alerterResolved = false;
 
 export async function handler(
   event: APIGatewayProxyEventV2WithJWTAuthorizer
 ): Promise<APIGatewayProxyStructuredResultV2> {
   store ??= TablePairsStore.fromEnv();
-  return createPutPairsArtefactHandler(store)(event);
+  if (!alerterResolved) {
+    alerter = SnsHaltAlerter.fromEnv();
+    alerterResolved = true;
+  }
+  return createPutPairsArtefactHandler(store, undefined, alerter)(event);
 }
