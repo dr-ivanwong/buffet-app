@@ -116,6 +116,9 @@ export function LiveScreen({
           Nightly report <span className={pairsStyles.figure}>{report.runDate}</span>
           {report.paper ? ' · paper login' : ' · live login'} · engine{' '}
           <span className={pairsStyles.figure}>{report.engineVersion}</span>
+          {report.closesSource == null ? null : (
+            <> · closes from <span className={pairsStyles.figure}>{report.closesSource}</span></>
+          )}
           {fetchedAt === undefined ? null : (
             <>
               {' '}

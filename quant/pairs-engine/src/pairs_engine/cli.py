@@ -25,18 +25,26 @@ DEFAULT_LOOKBACK_DAYS = 5 * 365
 def _fetch(args: argparse.Namespace) -> int:
     import os
 
-    api_key = os.environ.get("EODHD_API_KEY")
-    if not api_key:
-        print(
-            "EODHD_API_KEY is not set; keys live in the environment only "
-            "(see docs/runbook.md, the pairs first-scan section)",
-            file=sys.stderr,
-        )
-        return 2
+    from .data import YahooClient, absurd_move_warnings
+
+    if args.source == "eodhd":
+        api_key = os.environ.get("EODHD_API_KEY")
+        if not api_key:
+            print(
+                "EODHD_API_KEY is not set; keys live in the environment only "
+                "(see docs/runbook.md, the pairs first-scan section)",
+                file=sys.stderr,
+            )
+            return 2
+        client: EodhdClient | YahooClient = EodhdClient(api_key=api_key)
+    else:
+        # The unofficial research-phase source (owner decision 2026-07-30):
+        # free, unlicensed, no guarantees; licensed closes arrive before
+        # paper trading marks a book (runbook, the pairs first-scan section).
+        client = YahooClient()
     end = date.fromisoformat(args.end) if args.end else date.today()
     start = date.fromisoformat(args.start) if args.start else end - timedelta(days=DEFAULT_LOOKBACK_DAYS)
     store = CloseStore(Path(args.data_dir))
-    client = EodhdClient(api_key=api_key)
     try:
         closes = client.fetch_universe(UNIVERSE, start, end)
     except MissingTickersError as error:
@@ -45,7 +53,10 @@ def _fetch(args: argparse.Namespace) -> int:
     for ticker, series in closes.items():
         store.save(ticker, series)
         print(f"{ticker}: {len(series)} days cached")
-    print(f"cached {len(closes)} tickers under {store.root}")
+    store.save_source(args.source)
+    for warning in absurd_move_warnings(closes):
+        print(f"warning: {warning}", file=sys.stderr)
+    print(f"cached {len(closes)} tickers under {store.root} (source: {args.source})")
     return 0
 
 
@@ -65,6 +76,7 @@ def _scan(args: argparse.Namespace) -> int:
         train_fraction=TRAIN_FRACTION,
         min_shared_train_days=500,
         generated_at=datetime.now(timezone.utc),
+        closes_source=store.load_source(),
     )
     path = write_report(report, Path(args.out_dir))
     significant = sum(1 for pair in result.pairs if pair.p_value < MAX_P_VALUE)
@@ -298,6 +310,12 @@ def main(argv: list[str] | None = None) -> int:
     commands = parser.add_subparsers(dest="command", required=True)
 
     fetch = commands.add_parser("fetch", help="refresh the whole close window for the audited universe")
+    fetch.add_argument(
+        "--source",
+        required=True,
+        choices=["eodhd", "yahoo"],
+        help="close source: eodhd (licensed, key in env) or yahoo (unofficial, research phase only)",
+    )
     fetch.add_argument("--start", help="first date, YYYY-MM-DD (default: five years before end)")
     fetch.add_argument("--end", help="last date, YYYY-MM-DD (default: today)")
     fetch.add_argument("--data-dir", default="data", help="close cache directory")

@@ -66,6 +66,7 @@ def golden_report() -> PairScanReport:
         train_fraction=TRAIN_FRACTION,
         min_shared_train_days=500,
         generated_at=GOLDEN_GENERATED_AT,
+        closes_source="synthetic",
     )
 
 
@@ -131,6 +132,7 @@ def golden_live_state(root):
     closes = golden_closes()
     series1, series2 = closes["AAA"], closes["BBB"]
     store = CloseStore(root / "data")
+    store.save_source("synthetic")
     state = LiveState(root / "live")
     state.write_config(
         LiveConfig(

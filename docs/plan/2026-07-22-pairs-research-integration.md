@@ -109,7 +109,7 @@ The ordering is deliberate: the panels are debugged against paper-trading artefa
 
 ## 8. Costs
 
-The engine's data plan is already priced in the pairs plan (AUD 50–100 a month, plus the broker's market-data feed, confirmed in its Week 1). The infrastructure delta rounds to zero: existing bucket, existing table, existing API and authoriser, two routes and some read units inside the free-tier headroom the account already watches with tag-scoped budgets. No LLM spend exists anywhere in the sleeve. The real cost is operator time, and slice 0 through slice 3 is deliberately the smallest stretch that makes the research phase usable in the app.
+The engine's data plan is already priced in the pairs plan (AUD 50–100 a month, plus the broker's market-data feed, confirmed in its Week 1). *(Amended 2026-07-30, owner decision: the research phase may run on the free unofficial feed, source-stamped on every artefact, with licensed closes mandatory before paper trading marks a book; the pairs plan's Week 1 licensing paragraph carries the full record. Sequenced that way the sleeve's only unavoidable data spend is the broker's feed.)* The infrastructure delta rounds to zero: existing bucket, existing table, existing API and authoriser, two routes and some read units inside the free-tier headroom the account already watches with tag-scoped budgets. No LLM spend exists anywhere in the sleeve. The real cost is operator time, and slice 0 through slice 3 is deliberately the smallest stretch that makes the research phase usable in the app.
 
 ## 9. What this does not commit
 

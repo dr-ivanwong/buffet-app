@@ -136,6 +136,9 @@ export function BacktestScreen({
           Run <span className={pairsStyles.figure}>{report.runDate}</span> over scan{' '}
           <span className={pairsStyles.figure}>{report.scanRunDate}</span> · engine{' '}
           <span className={pairsStyles.figure}>{report.engineVersion}</span>
+          {report.closesSource == null ? null : (
+            <> · closes from <span className={pairsStyles.figure}>{report.closesSource}</span></>
+          )}
           {fetchedAt === undefined ? null : (
             <>
               {' '}

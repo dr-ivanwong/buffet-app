@@ -483,6 +483,7 @@ def build_daily_report(state: LiveState, store: CloseStore, generated_at: dateti
         engine_version=ENGINE_VERSION,
         run_date=targets.computed_for,
         generated_at=generated_at,
+        closes_source=store.load_source(),
         paper=config.paper,
         reconciliation=DailyReconciliation(
             status=status,
@@ -613,6 +614,7 @@ def build_weekly_report(state: LiveState, store: CloseStore, generated_at: datet
         engine_version=ENGINE_VERSION,
         run_date=run_date,
         generated_at=generated_at,
+        closes_source=store.load_source(),
         pairs=rows,
         correlations=correlations,
     )

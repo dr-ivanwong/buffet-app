@@ -21,12 +21,18 @@ uv sync
 uv run pytest
 ```
 
-The first live fetch and scan (the vendor key lives in the environment only, never in a file):
+The first fetch, scan and backtest; `--source` names the close source every time, and the cache remembers it so every artefact built from it carries the stamp:
 
 ```
-EODHD_API_KEY=... uv run pairs-engine fetch
+uv run pairs-engine fetch --source yahoo
 uv run pairs-engine scan
 uv run pairs-engine backtest
+```
+
+The yahoo source is the free research-phase feed (owner decision 2026-07-30, pairs trading plan Week 1 licensing as amended): unofficial, unlicensed, no guarantees, with the fetch warning on absurd one-day adjusted moves. Licensed closes are mandatory before paper trading marks a book; the vendor key lives in the environment only, never in a file:
+
+```
+EODHD_API_KEY=... uv run pairs-engine fetch --source eodhd
 ```
 
 `fetch` refreshes the whole five-year window for all fifty tickers and aborts loudly, all failures listed, if any ticker is missing: a downloader that skips failures quietly shrinks the universe. `scan` reads the cache, freezes the split, runs the statistics, and writes `artefacts/pair-scan-<runDate>.json`. Both `data/` and `artefacts/` are operator-local working state, ignored by git.

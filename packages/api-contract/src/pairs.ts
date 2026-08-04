@@ -12,6 +12,11 @@ const nonEmpty = z.string().min(1);
 const isoDate = z.iso.date();
 const isoDateTime = z.iso.datetime({ offset: true });
 
+/** Where a report's closes came from; the artefacts carry the stamp so a
+ * research-phase scan can never masquerade as licensed-grade later. */
+export const CLOSE_SOURCES = ['eodhd', 'yahoo', 'ib', 'synthetic'] as const;
+const closesSource = z.enum(CLOSE_SOURCES).nullable().optional();
+
 export const PAIR_SCAN_ARTEFACT_KIND = 'pairScanReport';
 export const PAIR_SCAN_SCHEMA_VERSION = 1;
 
@@ -69,6 +74,7 @@ export const pairScanReportSchema = z.object({
   engineVersion: nonEmpty,
   runDate: isoDate,
   generatedAt: isoDateTime,
+  closesSource,
   universe: z.array(nonEmpty),
   window: pairScanWindowSchema,
   criteria: pairScanCriteriaSchema,
@@ -167,6 +173,7 @@ export const backtestReportSchema = z.object({
   engineVersion: nonEmpty,
   runDate: isoDate,
   generatedAt: isoDateTime,
+  closesSource,
   scanRunDate: isoDate,
   window: backtestWindowSpecSchema,
   assumptions: backtestAssumptionsSchema,
@@ -255,6 +262,7 @@ export const dailyPairsReportSchema = z.object({
   engineVersion: nonEmpty,
   runDate: isoDate,
   generatedAt: isoDateTime,
+  closesSource,
   paper: z.boolean(),
   reconciliation: dailyReconciliationSchema,
   assumptions: backtestAssumptionsSchema,
@@ -287,6 +295,7 @@ export const weeklyMonitoringReportSchema = z.object({
   engineVersion: nonEmpty,
   runDate: isoDate,
   generatedAt: isoDateTime,
+  closesSource,
   pairs: z.array(weeklyPairRowSchema),
   correlations: z.array(weeklyCorrelationSchema)
 });

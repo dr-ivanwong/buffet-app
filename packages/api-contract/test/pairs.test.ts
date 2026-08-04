@@ -40,6 +40,12 @@ describe('the pair scan report schema', () => {
   it('parses the engine-written golden fixture', () => {
     const report = pairScanReportSchema.parse(fixture);
     expect(report.artefact).toBe(PAIR_SCAN_ARTEFACT_KIND);
+    // The provenance stamp: golden closes declare their synthetic
+    // origin, and a foreign source name is rejected on both sides.
+    expect(report.closesSource).toBe('synthetic');
+    expect(
+      pairScanReportSchema.safeParse({ ...report, closesSource: 'bloomberg' }).success
+    ).toBe(false);
     expect(report.universe).toEqual(['AAA', 'BBB', 'CCC', 'DDD', 'EEE']);
     // Ten choose-two pairs, reconciled exactly: tested plus skipped.
     expect(report.pairsTested + report.skipped.length).toBe(10);

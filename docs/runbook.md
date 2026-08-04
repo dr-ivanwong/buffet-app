@@ -122,11 +122,19 @@ The user pool deployed with `features.auth` (flipped 2026-07-18) through the sta
 
 The engine is built and tested keyless (integration plan §7, slice 1); the first live run is an owner step because the data licence is bought, not built.
 
-1. **Buy the EOD data plan** (EODHD or equivalent; ASX coverage needs a paid tier). Read the personal-use terms against the pairs trading plan's licensing section (Week 1) before paying, and line the first invoice up against that plan's monthly estimate; where they disagree, the estimate is what is wrong.
-2. **Fetch the universe** (the key lives in the environment for this one command, never in a file; the leading space keeps it out of zsh history):
+1. **Pick the close source.** Two paths, and the fetch names its source explicitly every time so a research cache can never be mistaken for a licensed one:
+   - **Research phase, free (owner decision 2026-07-30, pairs trading plan Week 1 licensing as amended):** Yahoo's unofficial feed, no key, no licence, no guarantees. Artefacts carry `closes from yahoo` on every surface, and the fetch warns on absurd one-day adjusted moves (the misapplied-split signature). Good enough to prove the pipeline and shortlist pairs; never good enough to mark a book.
+   - **Licensed, before paper trading:** buy the EOD plan (EODHD or equivalent; ASX coverage needs a paid tier), reading the personal-use terms against the pairs trading plan's licensing section first, or use the broker's own historical bars once the IB account exists. Line the first invoice up against the plan's monthly estimate; where they disagree, the estimate is what is wrong.
+2. **Fetch the universe** (for the licensed source the key lives in the environment for this one command, never in a file; the leading space keeps it out of zsh history):
 
    ```sh
-    EODHD_API_KEY=... uv run --directory quant/pairs-engine pairs-engine fetch
+   uv run --directory quant/pairs-engine pairs-engine fetch --source yahoo
+   ```
+
+   or, licensed:
+
+   ```sh
+    EODHD_API_KEY=... uv run --directory quant/pairs-engine pairs-engine fetch --source eodhd
    ```
 
    The fetch aborts loudly listing every missing ticker. A failure here means the universe audit needs re-running (pairs trading plan, Week 1), not a retry loop: tickers rename and delist, and a downloader that skips failures quietly shrinks the universe.

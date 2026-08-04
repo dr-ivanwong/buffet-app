@@ -98,6 +98,9 @@ export function PairsScreen({
         <p className={styles.provenance}>
           Run <span className={styles.figure}>{report.runDate}</span> · engine{' '}
           <span className={styles.figure}>{report.engineVersion}</span>
+          {report.closesSource == null ? null : (
+            <> · closes from <span className={styles.figure}>{report.closesSource}</span></>
+          )}
           {fetchedAt === undefined ? null : (
             <> · fetched <span className={styles.figure}>{formatFetchTime(fetchedAt)}</span></>
           )}

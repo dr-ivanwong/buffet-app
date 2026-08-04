@@ -4,6 +4,7 @@
   "engineVersion": "0.1.0",
   "runDate": "2024-01-26",
   "generatedAt": "2026-07-22T09:30:00Z",
+  "closesSource": "synthetic",
   "universe": [
     "AAA",
     "BBB",

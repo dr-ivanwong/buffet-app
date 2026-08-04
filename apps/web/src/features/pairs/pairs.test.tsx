@@ -26,6 +26,7 @@ const REPORT = {
   engineVersion: '0.1.0',
   runDate: '2024-01-26',
   generatedAt: '2026-07-22T09:30:00Z',
+  closesSource: 'yahoo',
   universe: ['AAA', 'BBB', 'CCC'],
   window: {
     start: '2021-01-04',
@@ -158,6 +159,10 @@ describe('the pairs research surface', () => {
 
     expect(await screen.findByRole('button', { name: 'AAA–BBB' })).toBeInTheDocument();
     expect(screen.getByText('2024-01-26')).toBeInTheDocument();
+    // The provenance stamp: a research-phase scan says where its closes
+    // came from, right on the provenance line.
+    expect(screen.getByText(/closes from/)).toBeInTheDocument();
+    expect(screen.getByText('yahoo')).toBeInTheDocument();
     expect(screen.getByText('2.50')).toBeInTheDocument();
     expect(screen.getByText('3.5 days')).toBeInTheDocument();
     // The join: both legs in the library carry sector and flag state, and

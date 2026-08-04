@@ -104,6 +104,7 @@ class PairScanReport(WireModel):
     engine_version: str
     run_date: date
     generated_at: datetime
+    closes_source: str | None = None
     universe: list[str]
     window: WindowSpec
     criteria: CriteriaSpec
@@ -124,6 +125,7 @@ def build_report(
     train_fraction: float,
     min_shared_train_days: int,
     generated_at: datetime,
+    closes_source: str | None = None,
 ) -> PairScanReport:
     pairs = [
         PairRow(
@@ -168,6 +170,7 @@ def build_report(
         engine_version=ENGINE_VERSION,
         run_date=calendar[-1].date(),
         generated_at=generated_at,
+        closes_source=closes_source,
         universe=tickers,
         window=WindowSpec(
             start=calendar[0].date(),
@@ -280,6 +283,7 @@ class BacktestReport(WireModel):
     engine_version: str
     run_date: date
     generated_at: datetime
+    closes_source: str | None = None
     scan_run_date: date
     window: BacktestWindowSpec
     assumptions: BacktestAssumptions
@@ -349,6 +353,7 @@ def build_backtest_report(
         engine_version=ENGINE_VERSION,
         run_date=scan.run_date,
         generated_at=generated_at,
+        closes_source=scan.closes_source,
         scan_run_date=scan.run_date,
         window=BacktestWindowSpec(
             start=scan.window.start,
@@ -449,6 +454,7 @@ class DailyPairsReport(WireModel):
     engine_version: str
     run_date: date
     generated_at: datetime
+    closes_source: str | None = None
     paper: bool
     reconciliation: DailyReconciliation
     assumptions: BacktestAssumptions
@@ -481,6 +487,7 @@ class WeeklyMonitoringReport(WireModel):
     engine_version: str
     run_date: date
     generated_at: datetime
+    closes_source: str | None = None
     pairs: list[WeeklyPairRow]
     correlations: list[WeeklyCorrelation]
 

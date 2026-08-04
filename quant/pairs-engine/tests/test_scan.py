@@ -65,6 +65,14 @@ def test_scan_with_an_empty_cache_fails_loudly(tmp_path, capsys):
 
 def test_fetch_without_a_key_refuses_and_points_at_the_runbook(tmp_path, monkeypatch, capsys):
     monkeypatch.delenv("EODHD_API_KEY", raising=False)
-    exit_code = main(["fetch", "--data-dir", str(tmp_path)])
+    exit_code = main(["fetch", "--source", "eodhd", "--data-dir", str(tmp_path)])
     assert exit_code == 2
     assert "EODHD_API_KEY" in capsys.readouterr().err
+
+
+def test_fetch_requires_an_explicit_source(tmp_path, capsys):
+    # No silent default: the operator names the source every fetch, so a
+    # research-phase cache can never be mistaken for a licensed one.
+    with __import__("pytest").raises(SystemExit):
+        main(["fetch", "--data-dir", str(tmp_path)])
+    assert "--source" in capsys.readouterr().err
